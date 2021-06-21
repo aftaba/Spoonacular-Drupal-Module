@@ -1,0 +1,7 @@
+recipe_nutrition.spoonacular_api_key:
+  path: '/admin/spoonacular-api-key'
+  defaults:
+    _form: '\Drupal\recipe_nutrition\Form\SpoonacularAPIForm'
+    _title: 'Enter your Spoonacular API key'
+  requirements:
+    _permission: 'administer site configuration'

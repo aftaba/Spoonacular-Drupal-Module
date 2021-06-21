@@ -1,0 +1,56 @@
+<?php
+
+/*
+https://drupal.stackexchange.com/questions/194456/how-to-use-presave-hook-to-save-a-field-value-as-node-title
+*/
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\paragraphs\Entity\Paragraph;
+use \Drupal\node\Entity\Node;
+use Drupal\Core\Form\ConfigFormBase;
+
+function recipe_nutrition_node_insert( Drupal\node\NodeInterface $entity) {
+	$nid = $entity->id();
+	
+	if ( 'recipes' == $entity->getType() ) {
+		$title = str_replace( ' ', '%20', $entity->getTitle() );
+
+		$config = \Drupal::config( 'recipe_nutrition.settings' );
+	  	$api_key = $config->get('spoonacular_api_key');
+		
+		if ( '' == $api_key ) {
+			\Drupal::messenger()->addError('No API key set. Please add it in Configuration -> Development -> Spoonacular API key');
+		} else {
+			$api_url = "https://api.spoonacular.com/recipes/guessNutrition?apiKey=$api_key&title=$title";
+		
+		  	try{
+			  	$client = \Drupal::httpClient();
+			    $request = $client->request("GET", $api_url );
+			    $response = json_decode($request->getBody(),true);
+			    
+			    if( isset($response["status"] ) ) {
+		        	\Drupal::messenger()->addError('No recipe nutrition value found for this recipe.');
+			    } else {
+				    $paragraph = Paragraph::create([
+						'type' => 'recipe_nutrition_calorie_count',
+						'field_calories' => $response["calories"]["value"],
+						'field_carbs' => $response["carbs"]["value"],
+						'field_fat' => $response["fat"]["value"],
+						'field_pro'	=> $response["protein"]["value"]
+					]);
+					$paragraph->save();
+					
+					$node  = Node::load($nid);
+					$current[] = array(
+				  		'target_id' => $paragraph->id(),
+				  		'target_revision_id' => $paragraph->getRevisionId(),
+					);
+
+					$node->set('field_nutrition', $current);
+				    $node->save();
+				}
+			} catch ( Exception $e ) {
+				\Drupal::logger('recipe_nutrition', $e->getMessage());
+			}
+		}
+	}
+}

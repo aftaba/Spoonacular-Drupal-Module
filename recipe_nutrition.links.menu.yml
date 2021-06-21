@@ -1,0 +1,6 @@
+recipe_nutrition.settings:
+  title: 'Spoonacular API Key'
+  route_name: recipe_nutrition.spoonacular_api_key
+  description: 'Enter your Spoonacular API Key'
+  parent: system.admin_config_development
+  weight: 99
