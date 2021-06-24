@@ -7,14 +7,81 @@ use Drupal\paragraphs\Entity\Paragraph;
 use \Drupal\node\Entity\Node;
 use Drupal\Core\Form\ConfigFormBase;
 
-function recipe_nutrition_node_update( Drupal\node\NodeInterface $entity) {
-	spoonacular_api_call( $entity );
-}
+
+
 function recipe_nutrition_node_insert( Drupal\node\NodeInterface $entity) {
-	spoonacular_api_call( $entity );
+	spoonacular_api_call_new_node( $entity );
 }
 
-function spoonacular_api_call( $entity ) {
+function recipe_nutrition_node_update( Drupal\node\NodeInterface $entity) {
+	spoonacular_api_call_old_node( $entity );
+}
+
+
+function spoonacular_api_call_old_node( $entity ) {
+	$nid = $entity->id();
+	
+	
+	if ( 'recipes' == $entity->getType() ) {
+		$title = str_replace( ' ', '%20', $entity->getTitle() );
+
+		$config = \Drupal::config( 'recipe_nutrition.settings' );
+	  	$api_key = $config->get('spoonacular_api_key');
+		
+		if ( '' == $api_key ) {
+			\Drupal::messenger()->addError('No API key set. Please add it in Configuration -> Development -> Spoonacular API key');
+		} else {
+			$api_url = "https://api.spoonacular.com/recipes/guessNutrition?apiKey=$api_key&title=$title";
+		
+		  	try{
+			  	$client = \Drupal::httpClient();
+			    $request = $client->request("GET", $api_url );
+			    $response = json_decode($request->getBody(),true);
+			    
+			    $node = \Drupal::entityTypeManager()->getStorage('node')->load($nid);
+			    $p = $node->get('field_nutrition' )->getValue();
+			    if( isset($response["status"] ) ) {
+		        	\Drupal::messenger()->addError('No recipe nutrition value found for this recipe.');
+		        	// delete the paragraph 
+		        	if ( isset( $p) ) {
+			    		foreach( $p as $recipe_field ) {
+			    			$p_data = Paragraph::load($recipe_field['target_id']);
+			    			$p_data->set( 'field_calories', '' );
+			    			$p_data->set( 'field_carbs', '' );
+			    			$p_data->set( 'field_fat', '' );
+			    			$p_data->set( 'field_pro', '' );
+			    			$p_data->save();
+			    		}
+
+			    	}
+			    } else {
+			    	
+			    	if ( isset( $p) ) {
+			    		foreach( $p as $recipe_field ) {
+			    			$p_data = Paragraph::load($recipe_field['target_id']);
+			    			$p_data->set( 'field_calories', $response["calories"]["value"] );
+			    			$p_data->set( 'field_carbs', $response["carbs"]["value"] );
+			    			$p_data->set( 'field_fat', $response["fat"]["value"] );
+			    			$p_data->set( 'field_pro', $response["protein"]["value"] );
+			    			$p_data->save();
+			    		}
+
+			    	}
+
+				}
+			} catch ( Exception $e ) {
+				\Drupal::logger('recipe_nutrition', $e->getMessage());
+			}
+		}
+	}
+}
+
+
+
+function spoonacular_api_call_new_node( $entity ) {
+	$nid = $entity->id();
+	if ( null == $nid ) return;
+	
 	if ( 'recipes' == $entity->getType() ) {
 		$title = str_replace( ' ', '%20', $entity->getTitle() );
 
@@ -43,14 +110,14 @@ function spoonacular_api_call( $entity ) {
 					]);
 					$paragraph->save();
 					
-					$node  = Node::load($nid);
+					$node  = \Drupal::entityTypeManager()->getStorage('node')->load($nid);
 					$current[] = array(
 				  		'target_id' => $paragraph->id(),
 				  		'target_revision_id' => $paragraph->getRevisionId(),
 					);
 
 					$node->set('field_nutrition', $current);
-				    $node->save();
+					$node->save();
 				}
 			} catch ( Exception $e ) {
 				\Drupal::logger('recipe_nutrition', $e->getMessage());
@@ -58,3 +125,4 @@ function spoonacular_api_call( $entity ) {
 		}
 	}
 }
+
