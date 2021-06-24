@@ -1,16 +1,20 @@
 <?php
 
 /*
-https://drupal.stackexchange.com/questions/194456/how-to-use-presave-hook-to-save-a-field-value-as-node-title
 */
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\paragraphs\Entity\Paragraph;
 use \Drupal\node\Entity\Node;
 use Drupal\Core\Form\ConfigFormBase;
 
+function recipe_nutrition_node_update( Drupal\node\NodeInterface $entity) {
+	spoonacular_api_call( $entity );
+}
 function recipe_nutrition_node_insert( Drupal\node\NodeInterface $entity) {
-	$nid = $entity->id();
-	
+	spoonacular_api_call( $entity );
+}
+
+function spoonacular_api_call( $entity ) {
 	if ( 'recipes' == $entity->getType() ) {
 		$title = str_replace( ' ', '%20', $entity->getTitle() );
 
